@@ -1,0 +1,9 @@
+*.mov
+*.mp4
+*.mkv
+*.avi
+*.nfo
+*.mpeg
+*.mpg
+report.html
+/MovieSort
