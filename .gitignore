@@ -6,4 +6,5 @@
 *.mpeg
 *.mpg
 report.html
+*.txt
 /MovieSort
