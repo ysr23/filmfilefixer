@@ -6,7 +6,6 @@ require 'json'
 require 'readline'
 require 'optparse'
 require 'yaml'
-require 'curses'
 
 class MovieSort
 
@@ -15,12 +14,14 @@ class MovieSort
     working_directory =  Dir.pwd
     puts "Deleting films/.nfo files in: #{working_directory}"
     directory_name = "MovieSort"
-    all_video_files = Dir.glob (@options[:types], "*.nfo")
+    @options[:types] << "*.nfo" << "*.txt"
+    all_video_files = Dir.glob(@options[:types])
     # put in error handling if no files
     all_video_files.each {|mf|
       puts "Deleting #{mf}"
       File.delete(mf)  
     }
+    exit
   end
 
   def self.themoviedb_lookup(type, title, year = "") 
@@ -105,10 +106,23 @@ class MovieSort
     year = year[0..3]
     sanitize_filename(title, year)
     build_nfo(response_by_id, title)
+    title_nfo = title + ".nfo"
+    puts title_nfo
     title = title + File.extname(@filename)
     puts "renaming #{@filename} to #{title}"
     build_report(@filename, title, id)
     File.rename(Dir.pwd + "/" + @filename, Dir.pwd + "/" + title)
+    if @options[:folder] == true
+      puts  "------ I would create folder now -------"
+      new_folder = Dir.pwd + "/" + response_by_id["title"]
+      unless File.exist?(new_folder)
+        Dir.mkdir(new_folder) 
+      else
+        puts "#{new_folder} Exists!"
+      end
+      File.rename title, new_folder + "/" + title
+      File.rename title_nfo, new_folder + "/" + title_nfo
+    end
     @command = 'exit'
     @command2 = 'exit'
   end
