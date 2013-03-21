@@ -9,10 +9,12 @@ require 'yaml'
 
 class MovieSort
 
+  def self.count_files
+  
+  end
   def self.clear_dir
     # This has been put in to clear up test data - to use this would be silly. Don't.
-    working_directory =  Dir.pwd
-    puts "Deleting films/.nfo files in: #{working_directory}"
+    puts "Deleting films/.nfo files in: #{@working_directory}"
     directory_name = "MovieSort"
     @options[:types] << "*.nfo" << "*.txt"
     all_video_files = Dir.glob(@options[:types])
@@ -112,13 +114,14 @@ class MovieSort
     puts "renaming #{@filename} to #{title}"
     build_report(@filename, title, id)
     File.rename(Dir.pwd + "/" + @filename, Dir.pwd + "/" + title)
-    if @options[:folder] == true
-      puts  "------ I would create folder now -------"
+    if @options[:make_folder] == true
+      puts "-" * 20
+      puts  "Creating folder"
       new_folder = Dir.pwd + "/" + response_by_id["title"]
       unless File.exist?(new_folder)
         Dir.mkdir(new_folder) 
       else
-        puts "#{new_folder} Exists!"
+        puts "#{new_folder} Already exists!"
       end
       File.rename title, new_folder + "/" + title
       File.rename title_nfo, new_folder + "/" + title_nfo
@@ -201,16 +204,15 @@ class MovieSort
     i+=1
   end
 
-  def self.dir_search
-    working_directory =  Dir.pwd
-    puts "Scanning for films in: #{working_directory}"
-    directory_name = "MovieSort"
-    Dir.mkdir(directory_name) unless File.exists?(directory_name)
+  def self.search_current_dir(directory)
+    #Dir.chdir(@working_directory)
+    Dir.chdir(directory)
     all_video_files = Dir.glob @options[:types]
     # put in error handling if no files
     all_video_files.each {|mf|
       file_search(mf)  
     }
+    puts "#{all_video_files.count} Movie files found"
   end
 
   @options = {
@@ -224,17 +226,14 @@ class MovieSort
     x.on("-d", "--delete", "Delete movie files and info files") do 
       clear_dir 
     end
-    x.on("-f", "--folders", "folders") do 
-      @options[:folder] = true
+    x.on("-f", "--folders", "search folders") do 
+      @options[:search_folder] = true
+    end
+    x.on("-mf", "--makefolder", "make folders") do 
+      @options[:make_folder] = true
     end
   end
-  op.parse!(ARGV)
-  file = ARGV.pop #GMA: shift rather than pop
-  # GMA - argv size and crap out if more than one - one file or every file - eg:
-  # if ARGV.empty || ARGV,size == 1
-  #  $stderr.puts "one file ya dick"
-  #  exit 1
-  #end  
+
   CONFIG_FILE = File.join(ENV['HOME'],'.moviesort.rc.yaml')
   if File.exists? CONFIG_FILE
     config_options = YAML.load_file(CONFIG_FILE)
@@ -244,8 +243,36 @@ class MovieSort
     File.open(CONFIG_FILE, 'w') { |file| YAML::dump(@options,file) }
     STDERR.puts "Initialized configuration file in #{CONFIG_FILE}"
   end
+  
+  ## As yet un-needed
+    directory_name = "MovieSort"
+    Dir.mkdir(directory_name) unless File.exists?(directory_name)
+  ##
 
   puts "-" * 50
-  dir_search
+  op.parse!(ARGV)
+  file = ARGV.shift #GMA: shift rather than pop
+  if file
+    if File.directory?(file)
+      @working_directory = file
+    end
+  else
+    @working_directory = Dir.pwd
+    puts "Looking for film files in: #{@working_directory}"
+  end
+  # GMA - argv size and crap out if more than one - one file or every file - eg:
+  # if ARGV.empty || ARGV,size == 1
+  #  $stderr.puts "one file ya dick"
+  #  exit 1
+  #end  
+  #Dir.chdir(@working_directory)
+  scan_dir = Dir.glob @working_directory
+  scan_dir.each {|sd|
+    if File.directory?(sd)
+      puts "#{sd} is a directory"
+    else
+      search_current_dir(@working_directory)
+    end
+  }
 end
 
