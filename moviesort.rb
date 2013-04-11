@@ -205,19 +205,21 @@ class MovieSort
   end
 
   def self.search_current_dir(directory)
-    #Dir.chdir(@working_directory)
     Dir.chdir(directory)
     all_video_files = Dir.glob @options[:types]
     # put in error handling if no files
     all_video_files.each {|mf|
       file_search(mf)  
     }
-    puts "#{all_video_files.count} Movie files found"
+    puts "#{all_video_files.count} Movie files found in #{directory}"
   end
 
+
+  
   @options = {
     :types => ["*.m4v", "*.avi", "*.mp4", "*.mkv"],
-    :moviedb_api => nil
+    :moviedb_api => nil,
+    :make_folder => true
   }
   op = OptionParser.new do |x|
     x.banner = 'moviesort.rb [options] [file]'
@@ -245,16 +247,17 @@ class MovieSort
   end
   
   ## As yet un-needed
-    directory_name = "MovieSort"
-    Dir.mkdir(directory_name) unless File.exists?(directory_name)
+  #  directory_name = "MovieSort"
+  #  Dir.mkdir(directory_name) unless File.exists?(directory_name)
   ##
 
   puts "-" * 50
   op.parse!(ARGV)
-  file = ARGV.shift #GMA: shift rather than pop
+  file = ARGV.shift 
+  puts "file is: #{file}" 
   if file
     if File.directory?(file)
-      @working_directory = file
+      @working_directory = Dir.pwd + "/" +file
     end
   else
     @working_directory = Dir.pwd
@@ -267,9 +270,12 @@ class MovieSort
   #end  
   #Dir.chdir(@working_directory)
   scan_dir = Dir.glob @working_directory
+  puts scan_dir
   scan_dir.each {|sd|
+    puts sd
     if File.directory?(sd)
       puts "#{sd} is a directory"
+      search_current_dir(sd)
     else
       search_current_dir(@working_directory)
     end
