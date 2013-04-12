@@ -211,10 +211,12 @@ class MovieSort
     all_video_files.each {|mf|
       file_search(mf)  
     }
-    puts "#{all_video_files.count} Movie files found in #{directory}"
+    puts "#{all_video_files.count} Movie files found"
   end
 
-
+  def self.find_folders
+    folders = Dir.glob('*').select {|f| File.directory? f}
+  end
   
   @options = {
     :types => ["*.m4v", "*.avi", "*.mp4", "*.mkv"],
@@ -230,6 +232,7 @@ class MovieSort
     end
     x.on("-f", "--folders", "search folders") do 
       @options[:search_folder] = true
+      puts "Searching Sub-folders"
     end
     x.on("-mf", "--makefolder", "make folders") do 
       @options[:make_folder] = true
@@ -254,7 +257,7 @@ class MovieSort
   puts "-" * 50
   op.parse!(ARGV)
   file = ARGV.shift 
-  puts "file is: #{file}" 
+  puts "file is: #{file}" if file 
   if file
     if File.directory?(file)
       @working_directory = Dir.pwd + "/" +file
@@ -268,17 +271,12 @@ class MovieSort
   #  $stderr.puts "one file ya dick"
   #  exit 1
   #end  
-  #Dir.chdir(@working_directory)
-  scan_dir = Dir.glob @working_directory
-  puts scan_dir
-  scan_dir.each {|sd|
-    puts sd
-    if File.directory?(sd)
-      puts "#{sd} is a directory"
-      search_current_dir(sd)
-    else
-      search_current_dir(@working_directory)
-    end
-  }
+  Dir.chdir(@working_directory)
+  search_current_dir(@working_directory)
+  if @options[:search_folder] 
+    folders = find_folders
+    puts "Folders count is #{folders.count}"
+    folders.each {|f| search_current_dir(@working_directory+"/"+f)} 
+  end
 end
 
