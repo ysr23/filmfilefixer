@@ -6,6 +6,7 @@ require 'json'
 require 'readline'
 require 'optparse'
 require 'yaml'
+require 'streamio-ffmpeg'
 
 class MovieSort
 
@@ -170,12 +171,14 @@ class MovieSort
         end
       when "m"
         puts "manual mode"
+        @command3 = Readline.readline("Please enter search term: > ",true)
+        #foo = themoviedb_lookup("search", @command3)
+        foo = file_search(@command3)
       end
     end
   end
 
   def self.file_search(mf)
-    @filename = mf
     file_hash = {} 
     i = 0
     file_hash[i] = { :filename => mf } 
@@ -209,6 +212,7 @@ class MovieSort
     all_video_files = Dir.glob @options[:types]
     # put in error handling if no files
     all_video_files.each {|mf|
+      @filename = mf
       file_search(mf)  
     }
     puts "#{all_video_files.count} Movie files found"
