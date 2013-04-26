@@ -26,14 +26,26 @@ class MovieSort
     }
     exit
   end
-
+  
+  def self.imdb_lookup(title, year = "")
+    search = "#{title} #{year}" 
+    #url = "http://www.imdb.com/xml/find?json=1&nr=1&tt=on&q=#{search}"
+    url = "http://www.omdbapi.com/?s=#{search}" 
+  end
+  
   def self.themoviedb_lookup(type, title, year = "") 
     case type
     when "search"
+     puts "Looking up themoviedb.org for: #{title}"
       search = "#{title} #{year}"
       url = "http://api.themoviedb.org/3/search/movie?query=#{search}&api_key=#{@options[:moviedb_api]}"
-    when "by_id"
+    when "themoviedb_by_id"
       url = "http://api.themoviedb.org/3/movie/#{title}?api_key=#{@options[:moviedb_api]}&append_to_response=releases,trailers,images"
+    when "imdb_by_id"
+      url = "http://www.omdbapi.com/?i=#{title}"
+    when "imdb"
+      puts "Looking up imdb.com for: #{title}"
+      url = imdb_lookup(title, year)
     else
       raise 'Flagrant error'
     end 
@@ -43,7 +55,7 @@ class MovieSort
   end 
 
   def self.build_report(filename, title, id)
-    report_filename = "./#{@directory_name}/report.html" 
+    report_filename = "#{@working_directory}/report.html" 
     File.open(report_filename, 'a+') { |report| 
       if title
         report.puts "Searched: #{filename} and matched with <a href=\"www.themoviedb.org/movie/#{id}\">#{title}</a><br>"
@@ -131,17 +143,23 @@ class MovieSort
     @command2 = 'exit'
   end
 
-  def self.execute_command(command, results)
+  def self.execute_command(command, results, search_site)
     puts "-" * 20
-    puts "#{command}) #{results[:moviename]}, looking up: http://www.themoviedb.org/movie/#{results[:id]} "
-    response_by_id = themoviedb_lookup("by_id", results[:id])
+    if search_site == "themoviedb"
+      puts "#{command}) #{results[:moviename]}, looking up: http://www.themoviedb.org/movie/#{results[:id]} "
+      response_by_id = themoviedb_lookup("themoviedb_by_id", results[:id])
+    end
+    if search_site == "imdb"
+      puts "#{command}) #{results[:moviename]}, looking up: http://www.omdbapi.com/?i=#{results[:id]} "
+      response_by_id = themoviedb_lookup("imdb_by_id", results[:id])
+    end
     puts "-" * 20
     puts "Title: #{response_by_id["title"]}"
     puts "Overview: #{response_by_id["overview"]}"
     puts "-" * 20
     @command2 = nil
     while @command2 != 'exit'
-      @command2 = Readline.readline("Is this film correct? (y/n)", true)
+      @command2 = Readline.readline("Is this film correct? (y/n) > ", true)
       break if @command2 == "n"
       break if @command2.nil?
       case @command2
@@ -151,12 +169,18 @@ class MovieSort
     end
   end
 
-  def self.process_command(options_range, results)
+  def self.process_command(options_range, results, search_site)
+    # Options_range will be an array unless there are 
+    # no options in which case its the filename (mf)
     @command = nil
     while @command != 'exit'
-      options = "(#{options_range.first}..#{options_range.last})" if options_range.count >1 
       puts "-"*20
-      @command = Readline.readline("Please Select #{options} (i=ignore) (m=manual) > ",true)
+      if options_range
+        options = "(#{options_range.first}..#{options_range.last})" 
+        @command = Readline.readline("Please Select #{options} (i=ignore) (m=manual) > ",true)
+      else
+        @command = Readline.readline("Nothing found for #{results}: (i=ignore) (m=manual) > ",true)
+      end  
       break if @command == "exit"
       break if @command == "i"
       break if @command.nil?
@@ -165,15 +189,14 @@ class MovieSort
         command_int = @command.strip.to_i
         # Make sure command is within range 
         if options_range.include? (command_int)
-          execute_command(command_int, results[command_int])
+          execute_command(command_int, results[command_int], search_site)
         else
           puts "#{command_int} is an invalid option. Please select #{options}"
         end
       when "m"
         puts "manual mode"
-        @command3 = Readline.readline("Please enter search term: > ",true)
-        #foo = themoviedb_lookup("search", @command3)
-        foo = file_search(@command3)
+        command3 = Readline.readline("Please enter search term: > ",true)
+        file_search(command3)
       end
     end
   end
@@ -184,12 +207,24 @@ class MovieSort
     file_hash[i] = { :filename => mf } 
     clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
     puts "-" * 50
-    puts "Looking up themoviedb.org for: #{mf}"
-    response = themoviedb_lookup("search", clean_filename)
-    if response["results"].count > 0 
-      puts "#{response["results"].count} Matches found on moviedb.org"
+    if @options[:imdb] == true
+      response = themoviedb_lookup("imdb", clean_filename)
+      response_unified = response.first[1] 
+      response_unified = nil if response_unified == "False"
+      mappings = {"Title" => "title", "Year" => "year"}
+      response_unified = response_unified.map{|r| \
+        Hash[r.map {|k, v| [mappings[k], v] }]} if response_unified
+      search_site = "IMDB"
+    else
+      response = themoviedb_lookup("search", clean_filename)
+      response_unified = response["results"]
+      response_unified = nil if response_unified.empty?
+      search_site = "MovieDB"
+    end
+    if response_unified
+      puts "#{response_unified.count} Matches found on #{search_site}"
       r_count = 0
-      response["results"].each {|r|
+      response_unified.each {|r|
         puts "-- #{r_count}) -  #{r['title']}(#{r['release_date']})"
         file_hash[i][r_count] = {} 
         file_hash[i][r_count][:moviename] = r['title']  
@@ -198,12 +233,13 @@ class MovieSort
         r_count+=1
       }
       options_range =* (0...r_count)
-      process_command(options_range, file_hash[i])
+      process_command(options_range, file_hash[i], search_site)
     else
       file_hash[i][:filename] = clean_filename  
-      puts "Nothing found on themoviedb.org for #{clean_filename}" 
+      puts "Nothing found on #{search_site} for #{clean_filename}" 
+      process_command(nil, mf)
       build_report(@filename, nil, nil)
-    end 
+    end
     i+=1
   end
 
@@ -215,7 +251,7 @@ class MovieSort
       @filename = mf
       file_search(mf)  
     }
-    puts "#{all_video_files.count} Movie files found"
+    puts "#{all_video_files.count} Movie files found in #{directory}"
   end
 
   def self.find_folders
@@ -240,6 +276,9 @@ class MovieSort
     end
     x.on("-mf", "--makefolder", "make folders") do 
       @options[:make_folder] = true
+    end
+    x.on("-i", "--imdb", "search imdb") do 
+      @options[:imdb] = true
     end
   end
 
@@ -279,7 +318,7 @@ class MovieSort
   search_current_dir(@working_directory)
   if @options[:search_folder] 
     folders = find_folders
-    puts "Folders count is #{folders.count}"
+    puts "#{folders.count} folders found" if @options[:search_folder] = true
     folders.each {|f| search_current_dir(@working_directory+"/"+f)} 
   end
 end
