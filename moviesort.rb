@@ -7,12 +7,13 @@ require 'readline'
 require 'optparse'
 require 'yaml'
 require 'streamio-ffmpeg'
+require_relative 'imdb_search'
+require_relative 'imdb_get'
+require_relative 'moviedb_search'
+require_relative 'moviedb_get'
 
 class MovieSort
 
-  def self.count_files
-  
-  end
   def self.clear_dir
     # This has been put in to clear up test data - to use this would be silly. Don't.
     puts "Deleting films/.nfo files in: #{@working_directory}"
@@ -43,6 +44,7 @@ class MovieSort
       url = "http://api.themoviedb.org/3/movie/#{title}?api_key=#{@options[:moviedb_api]}&append_to_response=releases,trailers,images"
     when "imdb_by_id"
       url = "http://www.omdbapi.com/?i=#{title}"
+      puts url
     when "imdb"
       puts "Looking up imdb.com for: #{title}"
       url = imdb_lookup(title, year)
@@ -80,47 +82,53 @@ class MovieSort
     cast_response = JSON.parse cast_response
   end
 
-  def self.build_nfo(response_by_id, title)
-    nfo_filename = "#{Dir.pwd}/#{title}.nfo"
-    puts "Creating .nfo file: #{title}.nfo"
-    cast_response = get_cast(response_by_id['id'])
+  def self.build_nfo(response_by_id)
+    nfo_filename = "#{Dir.pwd}/#{response_by_id.title}.nfo"
+    puts "Creating .nfo file: #{response_by_id.title}.nfo"
+    #cast_response = get_cast(response_by_id.id)
     File.open(nfo_filename, 'w') { |nfo|
       nfo.puts "<movie>"
-      nfo.puts "  <title>#{response_by_id['title']}</title>"
-      nfo.puts "  <originaltitle>#{response_by_id['original_title']}</originaltitle>"
-      nfo.puts "  <outline>#{response_by_id['overview']}</outline>"
-      nfo.puts "  <runtime>#{response_by_id['runtime']}</runtime>"
-      nfo.puts "  <id>#{response_by_id['imdb_id']}</id>"
-      nfo.puts "  <tagline>#{response_by_id['tagline']}</tagline>"
-      foo = {} 
-      i = 0
-      cast_response['cast'] .each {|cr|
-        foo[i] = { "name" => cr['name'], "role" => cr['character'], "order" => cr['order']}
-        i += 1
+      nfo.puts "  <title>#{response_by_id.title}</title>"
+      nfo.puts "  <outline>#{response_by_id.plot}</outline>"
+      response_by_id.genre.each {|genre|
+        nfo.puts "  <genre>#{genre}</genre>"
       }
-      foo = foo.sort_by { |k,v| v['order']}
-      foo.each { |k,v|
+      
+      response_by_id.actors.each {|actor|
         nfo.puts "  <actor>"
-        nfo.puts "    <name>#{v['name']}</name>"
-        nfo.puts "    <role>#{v['role']}</role>"
-        nfo.puts "  </actor>"
+        nfo.puts "      <name>#{actor[:name]}</name>"
+        nfo.puts "      <role>#{actor[:role]}</role>"
+      nfo.puts "  </actor>"
       }
-      cast_response['crew'].each {|cr|
-        job  = cr['job'].tr(" ", "")
-        nfo.puts "  <#{job}>#{cr['name']}</#{job}>"
-      }
+      nfo.puts "  <id>#{response_by_id.id}</id>"
+     # foo = {} 
+     # i = 0
+     # cast_response['cast'] .each {|cr|
+     #   foo[i] = { "name" => cr['name'], "role" => cr['character'], "order" => cr['order']}
+     #   i += 1
+     # }
+     # foo = foo.sort_by { |k,v| v['order']}
+     # foo.each { |k,v|
+     #   nfo.puts "  <actor>"
+     #   nfo.puts "    <name>#{v['name']}</name>"
+     #   nfo.puts "    <role>#{v['role']}</role>"
+     #   nfo.puts "  </actor>"
+     # }
+     # cast_response['crew'].each {|cr|
+     #   job  = cr['job'].tr(" ", "")
+     #   nfo.puts "  <#{job}>#{cr['name']}</#{job}>"
+     # }
       nfo.puts "</movie>"
     }
   end
 
   def self.rename_file(response_by_id)
-    # puts response_by_id
-    title = response_by_id["title"]
-    year = response_by_id["release_date"]
-    id = response_by_id["id"]
-    year = year[0..3]
+    puts response_by_id
+    title = response_by_id.title
+    year = response_by_id.year
+    id = response_by_id.id
     sanitize_filename(title, year)
-    build_nfo(response_by_id, title)
+    build_nfo(response_by_id)
     title_nfo = title + ".nfo"
     puts title_nfo
     title = title + File.extname(@filename)
@@ -130,7 +138,7 @@ class MovieSort
     if @options[:make_folder] == true
       puts "-" * 20
       puts  "Creating folder"
-      new_folder = Dir.pwd + "/" + response_by_id["title"]
+      new_folder = Dir.pwd + "/" + response_by_id.title
       unless File.exist?(new_folder)
         Dir.mkdir(new_folder) 
       else
@@ -143,19 +151,17 @@ class MovieSort
     @command2 = 'exit'
   end
 
-  def self.execute_command(command, results, search_site)
+  def self.execute_command(command, results)
     puts "-" * 20
-    if search_site == "themoviedb"
-      puts "#{command}) #{results[:moviename]}, looking up: http://www.themoviedb.org/movie/#{results[:id]} "
-      response_by_id = themoviedb_lookup("themoviedb_by_id", results[:id])
+    if results[:source] == "moviedb"
+      film = MovieDbFilmGet.new(results[:id])
     end
-    if search_site == "imdb"
-      puts "#{command}) #{results[:moviename]}, looking up: http://www.omdbapi.com/?i=#{results[:id]} "
-      response_by_id = themoviedb_lookup("imdb_by_id", results[:id])
+    if results[:source] == "imdb"
+      film = ImdbFilmGet.new(results[:id])
     end
     puts "-" * 20
-    puts "Title: #{response_by_id["title"]}"
-    puts "Overview: #{response_by_id["overview"]}"
+    puts "Title: #{film.title}"
+    puts "Overview: #{film.plot}"
     puts "-" * 20
     @command2 = nil
     while @command2 != 'exit'
@@ -164,12 +170,12 @@ class MovieSort
       break if @command2.nil?
       case @command2
       when 'y'
-        rename_file(response_by_id)
+        rename_file(film)
       end
     end
   end
 
-  def self.process_command(options_range, results, search_site)
+  def self.process_command(options_range, results)
     # Options_range will be an array unless there are 
     # no options in which case its the filename (mf)
     @command = nil
@@ -189,7 +195,7 @@ class MovieSort
         command_int = @command.strip.to_i
         # Make sure command is within range 
         if options_range.include? (command_int)
-          execute_command(command_int, results[command_int], search_site)
+          execute_command(command_int, results[command_int])
         else
           puts "#{command_int} is an invalid option. Please select #{options}"
         end
@@ -200,62 +206,95 @@ class MovieSort
       end
     end
   end
-
-  def self.file_search(mf)
-    file_hash = {} 
-    i = 0
-    file_hash[i] = { :filename => mf } 
-    clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
-    puts "-" * 50
-    if @options[:imdb] == true
-      response = themoviedb_lookup("imdb", clean_filename)
-      response_unified = response.first[1] 
-      response_unified = nil if response_unified == "False"
-      mappings = {"Title" => "title", "Year" => "year"}
+  def self.unify_response(search_type, response_unified)
+    case search_type
+      when "IMDB"
+      mappings = {"Title" => "title", "Year" => "release_date", "imdbID" => "id"}
       response_unified = response_unified.map{|r| \
         Hash[r.map {|k, v| [mappings[k], v] }]} if response_unified
-      search_site = "IMDB"
-    else
-      response = themoviedb_lookup("search", clean_filename)
-      response_unified = response["results"]
-      response_unified = nil if response_unified.empty?
-      search_site = "MovieDB"
+    puts "213 - #{search_type} - #{response_unified}"
+      when "MovieDB"
     end
-    if response_unified
-      puts "#{response_unified.count} Matches found on #{search_site}"
-      r_count = 0
-      response_unified.each {|r|
-        puts "-- #{r_count}) -  #{r['title']}(#{r['release_date']})"
-        file_hash[i][r_count] = {} 
-        file_hash[i][r_count][:moviename] = r['title']  
-        file_hash[i][r_count][:filename] = clean_filename  
-        file_hash[i][r_count][:id] = r['id']  
-        r_count+=1
-      }
-      options_range =* (0...r_count)
-      process_command(options_range, file_hash[i], search_site)
-    else
-      file_hash[i][:filename] = clean_filename  
-      puts "Nothing found on #{search_site} for #{clean_filename}" 
-      process_command(nil, mf)
-      build_report(@filename, nil, nil)
-    end
-    i+=1
   end
+  def self.file_search(mf)
+    file_hash = {}
+    i = 1
+    file_hash[i] = { :filename => mf }
+    clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
+    if @options[:imdb] == true
+      films = ImdbFilmSearch.search(clean_filename)
+    else
+      films = MovieDbFilmSearch.search(clean_filename)
+    end  
+    if films
+      puts "#{films.count} matches found"
+      f_count = 1
+      films.each {|search_result|
+        puts "-- #{f_count}) -  #{search_result.title} (#{search_result.title})"  
+        file_hash[i][f_count] = {}
+        file_hash[i][f_count][:moviename] = search_result.title
+        file_hash[i][f_count][:filename] = clean_filename 
+        file_hash[i][f_count][:id] = search_result.id
+        file_hash[i][f_count][:source] = search_result.source
+        f_count +=1
+      }
+      options_range =* (0...f_count)
+      process_command(options_range, file_hash[i])
+    else
+      puts "no films found for #{clean_filename}"
+    end
+  end
+
+#  def self.file_searchx(mf)
+#    file_hash = {} 
+#    i = 0
+#    file_hash[i] = { :filename => mf } 
+#    clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
+#    puts "-" * 50
+#  if @options[:imdb] == true
+#      response = themoviedb_lookup("imdb", clean_filename)
+#      response_unified = response.first[1] 
+#      response_unified = nil if response_unified == "False"
+#      search_site = "IMDB"
+#      response_unified = unify_response(search_site, response_unified)
+#      puts "232 - #{response_unified}"
+#    else
+#      response = themoviedb_lookup("search", clean_filename)
+#      response_unified = response["results"]
+#      response_unified = nil if response_unified.empty?
+#      search_site = "MovieDB"
+#      unify_response(searchsite, response_unified)
+#    end
+#    if response_unified
+#      puts "#{response_unified.count} Matches found on #{search_site}"
+#      r_count = 0
+#      response_unified.each {|r|
+#        puts "-- #{r_count}) -  #{r['title']}(#{r['release_date']})"
+#        file_hash[i][r_count] = {} 
+#        file_hash[i][r_count][:moviename] = r['title']  
+#        file_hash[i][r_count][:filename] = clean_filename  
+#        file_hash[i][r_count][:id] = r['id']  
+#        r_count+=1
+#      }
+#      options_range =* (0...r_count)
+#      process_command(options_range, file_hash[i], search_site)
+#    else
+#      file_hash[i][:filename] = clean_filename  
+#      puts "Nothing found on #{search_site} for #{clean_filename}" 
+#      process_command(nil, mf)
+#      build_report(@filename, nil, nil)
+#    end
+#    i+=1
+#  end
 
   def self.search_current_dir(directory)
     Dir.chdir(directory)
     all_video_files = Dir.glob @options[:types]
-    # put in error handling if no files
     all_video_files.each {|mf|
       @filename = mf
       file_search(mf)  
     }
     puts "#{all_video_files.count} Movie files found in #{directory}"
-  end
-
-  def self.find_folders
-    folders = Dir.glob('*').select {|f| File.directory? f}
   end
   
   @options = {
@@ -291,11 +330,6 @@ class MovieSort
     File.open(CONFIG_FILE, 'w') { |file| YAML::dump(@options,file) }
     STDERR.puts "Initialized configuration file in #{CONFIG_FILE}"
   end
-  
-  ## As yet un-needed
-  #  directory_name = "MovieSort"
-  #  Dir.mkdir(directory_name) unless File.exists?(directory_name)
-  ##
 
   puts "-" * 50
   op.parse!(ARGV)
@@ -309,11 +343,7 @@ class MovieSort
     @working_directory = Dir.pwd
     puts "Looking for film files in: #{@working_directory}"
   end
-  # GMA - argv size and crap out if more than one - one file or every file - eg:
-  # if ARGV.empty || ARGV,size == 1
-  #  $stderr.puts "one file ya dick"
-  #  exit 1
-  #end  
+
   Dir.chdir(@working_directory)
   search_current_dir(@working_directory)
   if @options[:search_folder] 
