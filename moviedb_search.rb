@@ -3,6 +3,7 @@ require_relative 'film'
 class MovieDbFilmSearch 
 
   def self.search(title)
+    title = URI.escape(title) 
     json_url = "http://api.themoviedb.org/3/search/movie?query=#{title}&api_key=61a8fcb885ddad6d5967a2204f3e231c"
     resp = Net::HTTP.get_response(URI.parse(json_url))
     json_data = resp.body

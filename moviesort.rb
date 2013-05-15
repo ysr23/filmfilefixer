@@ -28,12 +28,6 @@ class MovieSort
     exit
   end
   
-  def self.imdb_lookup(title, year = "")
-    search = "#{title} #{year}" 
-    #url = "http://www.imdb.com/xml/find?json=1&nr=1&tt=on&q=#{search}"
-    url = "http://www.omdbapi.com/?s=#{search}" 
-  end
-  
   def self.themoviedb_lookup(type, title, year = "") 
     case type
     when "search"
@@ -206,21 +200,13 @@ class MovieSort
       end
     end
   end
-  def self.unify_response(search_type, response_unified)
-    case search_type
-      when "IMDB"
-      mappings = {"Title" => "title", "Year" => "release_date", "imdbID" => "id"}
-      response_unified = response_unified.map{|r| \
-        Hash[r.map {|k, v| [mappings[k], v] }]} if response_unified
-    puts "213 - #{search_type} - #{response_unified}"
-      when "MovieDB"
-    end
-  end
   def self.file_search(mf)
     file_hash = {}
     i = 1
     file_hash[i] = { :filename => mf }
-    clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
+    #clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
+    clean_filename = mf.chomp(File.extname(mf) ).capitalize
+    puts "208 #{clean_filename}"
     if @options[:imdb] == true
       films = ImdbFilmSearch.search(clean_filename)
     else
@@ -245,47 +231,6 @@ class MovieSort
     end
   end
 
-#  def self.file_searchx(mf)
-#    file_hash = {} 
-#    i = 0
-#    file_hash[i] = { :filename => mf } 
-#    clean_filename = mf.chomp(File.extname(mf) ).capitalize.tr(" ", "_")
-#    puts "-" * 50
-#  if @options[:imdb] == true
-#      response = themoviedb_lookup("imdb", clean_filename)
-#      response_unified = response.first[1] 
-#      response_unified = nil if response_unified == "False"
-#      search_site = "IMDB"
-#      response_unified = unify_response(search_site, response_unified)
-#      puts "232 - #{response_unified}"
-#    else
-#      response = themoviedb_lookup("search", clean_filename)
-#      response_unified = response["results"]
-#      response_unified = nil if response_unified.empty?
-#      search_site = "MovieDB"
-#      unify_response(searchsite, response_unified)
-#    end
-#    if response_unified
-#      puts "#{response_unified.count} Matches found on #{search_site}"
-#      r_count = 0
-#      response_unified.each {|r|
-#        puts "-- #{r_count}) -  #{r['title']}(#{r['release_date']})"
-#        file_hash[i][r_count] = {} 
-#        file_hash[i][r_count][:moviename] = r['title']  
-#        file_hash[i][r_count][:filename] = clean_filename  
-#        file_hash[i][r_count][:id] = r['id']  
-#        r_count+=1
-#      }
-#      options_range =* (0...r_count)
-#      process_command(options_range, file_hash[i], search_site)
-#    else
-#      file_hash[i][:filename] = clean_filename  
-#      puts "Nothing found on #{search_site} for #{clean_filename}" 
-#      process_command(nil, mf)
-#      build_report(@filename, nil, nil)
-#    end
-#    i+=1
-#  end
 
   def self.search_current_dir(directory)
     Dir.chdir(directory)

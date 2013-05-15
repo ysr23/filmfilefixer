@@ -3,6 +3,7 @@ require_relative 'film'
 class ImdbFilmSearch 
 
     def self.search(title)
+      title = URI.escape(title) 
       json_url = "http://www.omdbapi.com/?s=#{title}" 
       resp = Net::HTTP.get_response(URI.parse(json_url))
       json_data = resp.body
